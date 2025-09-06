@@ -106,7 +106,7 @@ async function getUserInfo(gql: typeof graphql, includeForks = false) {
                     }
                 }
             }
-            repositories(affiliations: OWNER, isFork: ${includeForks}, first: 100) {
+            repositories(affiliations: [OWNER, COLLABORATOR], isFork: ${includeForks}, first: 100) {
                 totalCount
                 nodes {
                     stargazers {
@@ -274,7 +274,7 @@ function replaceLanguageTemplate(input: string, repositories: Repository[]) {
     const replacements = []
     for (const match of input.matchAll(rStart)) {
         if (match.index === undefined) continue
-        const opts = match.groups?.opts
+        const opts = match[1]
         const max = (opts && Number(getOptsMap(opts).get('max'))) || 8
         const end = match.index + match[0].length
         const s = input.substring(end)
