@@ -1,4 +1,4 @@
-name: 'Profile Readme Stats'
+name: 'Profile Analytics'
 description: 'Showcase your github stats on your profile README.md'
 inputs:
   token:
@@ -20,5 +20,5 @@ runs:
   using: 'node20'
   main: 'dist/index.js'
 branding:
-  icon: 'align-justify'
-  color: 'blue'
+  icon: 'activity'
+  color: 'white'
