@@ -1,4 +1,4 @@
-# Profile Readme Stats
+# Profile Analytics
 
 Showcase your github stats on your profile README.md.
 
@@ -172,7 +172,7 @@ jobs:
       with:
         fetch-depth: 0
     - name: Generate README.md
-      uses: teoxoy/profile-readme-stats@v3
+      uses: naitikmalaviya/profile-readme-stats@v1
       with:
         token: ${{ secrets.USER_TOKEN }}
     - name: Update README.md
@@ -186,3 +186,6 @@ jobs:
         fi
 ```
 <!-- prettier-ignore-end -->
+
+
+forked from  [teoxoy/profile-readme-stats](https://github.com/teoxoy/profile-readme-stats)
