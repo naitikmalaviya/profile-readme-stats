@@ -7668,48 +7668,49 @@ async function getUserInfo(gql, includeForks = false) {
     };
 }
 async function getRepositoryContributions(gql, contributionYears) {
+    // Aggregate contributions by repository across all years
+    const repoCommitMap = new Map();
     // Get all repositories the user has contributed to along with commit contributions
-    let query = '{viewer{';
     for (const year of contributionYears) {
-        query += `_${year}: contributionsCollection(from: "${getDateTime(year)}", to: "${getDateTime(year + 1)}") {
-            commitContributionsByRepository(maxRepositories: 100) {
-                repository {
-                    name
-                    owner {
-                        login
-                    }
-                    defaultBranchRef {
-                        target {
-                            ... on Commit {
-                                history {
-                                    totalCount
+        const query = `{
+            viewer {
+                contributionsCollection(from: "${getDateTime(year)}", to: "${getDateTime(year + 1)}") {
+                    commitContributionsByRepository(maxRepositories: 100) {
+                        repository {
+                            name
+                            owner {
+                                login
+                            }
+                            defaultBranchRef {
+                                target {
+                                    ... on Commit {
+                                        history {
+                                            totalCount
+                                        }
+                                    }
+                                }
+                            }
+                            languages(first: 100) {
+                                edges {
+                                    size
+                                    node {
+                                        color
+                                        name
+                                    }
                                 }
                             }
                         }
-                    }
-                    languages(first: 100) {
-                        edges {
-                            size
-                            node {
-                                color
-                                name
-                            }
+                        contributions(first: 1) {
+                            totalCount
                         }
                     }
                 }
-                contributions(first: 1) {
-                    totalCount
-                }
             }
         }`;
-    }
-    query += '}}';
-    const contributionResult = await gql(query);
-    // Aggregate contributions by repository across all years
-    const repoCommitMap = new Map();
-    Object.keys(contributionResult.viewer).forEach(key => {
-        const yearContributions = contributionResult.viewer[key].commitContributionsByRepository;
-        yearContributions.forEach(contrib => {
+        const contributionResult = await gql(query);
+        const yearContributions = contributionResult.viewer.contributionsCollection
+            .commitContributionsByRepository;
+        yearContributions.forEach((contrib) => {
             const repoKey = `${contrib.repository.owner.login}/${contrib.repository.name}`;
             const totalRepoCommits = contrib.repository.defaultBranchRef?.target.history
                 .totalCount || 1;
@@ -7730,30 +7731,38 @@ async function getRepositoryContributions(gql, contributionYears) {
                 });
             }
         });
-    });
+    }
     return Array.from(repoCommitMap.values()).filter(repo => repo.userCommits > 0);
 }
 async function getTotalCommits(gql, contributionYears) {
-    let query = '{viewer{';
+    let total = 0;
     for (const year of contributionYears) {
-        query += `_${year}: contributionsCollection(from: "${getDateTime(year)}") { totalCommitContributions }`;
+        const query = `{
+            viewer {
+                contributionsCollection(from: "${getDateTime(year)}") {
+                    totalCommitContributions
+                }
+            }
+        }`;
+        const result = await gql(query);
+        total += result.viewer.contributionsCollection.totalCommitContributions;
     }
-    query += '}}';
-    const result = await gql(query);
-    return Object.keys(result.viewer)
-        .map(key => result.viewer[key].totalCommitContributions)
-        .reduce((total, current) => total + current, 0);
+    return total;
 }
 async function getTotalReviews(gql, contributionYears) {
-    let query = '{viewer{';
+    let total = 0;
     for (const year of contributionYears) {
-        query += `_${year}: contributionsCollection(from: "${getDateTime(year)}") { totalPullRequestReviewContributions }`;
+        const query = `{
+            viewer {
+                contributionsCollection(from: "${getDateTime(year)}") {
+                    totalPullRequestReviewContributions
+                }
+            }
+        }`;
+        const result = await gql(query);
+        total += result.viewer.contributionsCollection.totalPullRequestReviewContributions;
     }
-    query += '}}';
-    const result = await gql(query);
-    return Object.keys(result.viewer)
-        .map(key => result.viewer[key].totalPullRequestReviewContributions)
-        .reduce((total, current) => total + current, 0);
+    return total;
 }
 function getDateTime(year) {
     const date = new Date();

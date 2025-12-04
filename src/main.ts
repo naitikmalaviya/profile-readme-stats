@@ -174,49 +174,9 @@ async function getRepositoryContributions(
     gql: typeof graphql,
     contributionYears: number[]
 ) {
-    // Get all repositories the user has contributed to along with commit contributions
-    let query = '{viewer{'
-    for (const year of contributionYears) {
-        query += `_${year}: contributionsCollection(from: "${getDateTime(
-            year
-        )}", to: "${getDateTime(year + 1)}") {
-            commitContributionsByRepository(maxRepositories: 100) {
-                repository {
-                    name
-                    owner {
-                        login
-                    }
-                    defaultBranchRef {
-                        target {
-                            ... on Commit {
-                                history {
-                                    totalCount
-                                }
-                            }
-                        }
-                    }
-                    languages(first: 100) {
-                        edges {
-                            size
-                            node {
-                                color
-                                name
-                            }
-                        }
-                    }
-                }
-                contributions(first: 1) {
-                    totalCount
-                }
-            }
-        }`
-    }
-    query += '}}'
-
     interface ContributionResult {
-        viewer: Record<
-            string,
-            {
+        viewer: {
+            contributionsCollection: {
                 commitContributionsByRepository: Array<{
                     repository: {
                         name: string
@@ -245,26 +205,67 @@ async function getRepositoryContributions(
                     }
                 }>
             }
-        >
+        }
     }
-
-    const contributionResult = await gql<ContributionResult>(query)
 
     // Aggregate contributions by repository across all years
     const repoCommitMap = new Map<
         string,
         {
-            repository: ContributionResult['viewer'][string]['commitContributionsByRepository'][0]['repository']
+            repository: ContributionResult['viewer']['contributionsCollection']['commitContributionsByRepository'][0]['repository']
             userCommits: number
             totalRepoCommits: number
             commitRatio: number
         }
     >()
 
-    Object.keys(contributionResult.viewer).forEach(key => {
+    // Get all repositories the user has contributed to along with commit contributions
+    for (const year of contributionYears) {
+        const query = `{
+            viewer {
+                contributionsCollection(from: "${getDateTime(
+                    year
+                )}", to: "${getDateTime(year + 1)}") {
+                    commitContributionsByRepository(maxRepositories: 100) {
+                        repository {
+                            name
+                            owner {
+                                login
+                            }
+                            defaultBranchRef {
+                                target {
+                                    ... on Commit {
+                                        history {
+                                            totalCount
+                                        }
+                                    }
+                                }
+                            }
+                            languages(first: 100) {
+                                edges {
+                                    size
+                                    node {
+                                        color
+                                        name
+                                    }
+                                }
+                            }
+                        }
+                        contributions(first: 1) {
+                            totalCount
+                        }
+                    }
+                }
+            }
+        }`
+
+        const contributionResult = await gql<ContributionResult>(query)
+
         const yearContributions =
-            contributionResult.viewer[key].commitContributionsByRepository
-        yearContributions.forEach(contrib => {
+            contributionResult.viewer.contributionsCollection
+                .commitContributionsByRepository
+
+        yearContributions.forEach((contrib: ContributionResult['viewer']['contributionsCollection']['commitContributionsByRepository'][0]) => {
             const repoKey = `${contrib.repository.owner.login}/${contrib.repository.name}`
             const totalRepoCommits =
                 contrib.repository.defaultBranchRef?.target.history
@@ -286,7 +287,7 @@ async function getRepositoryContributions(
                 })
             }
         })
-    })
+    }
 
     return Array.from(repoCommitMap.values()).filter(
         repo => repo.userCommits > 0
@@ -297,44 +298,52 @@ async function getTotalCommits(
     gql: typeof graphql,
     contributionYears: number[]
 ) {
-    let query = '{viewer{'
+    let total = 0
     for (const year of contributionYears) {
-        query += `_${year}: contributionsCollection(from: "${getDateTime(
-            year
-        )}") { totalCommitContributions }`
+        const query = `{
+            viewer {
+                contributionsCollection(from: "${getDateTime(year)}") {
+                    totalCommitContributions
+                }
+            }
+        }`
+        interface Result {
+            viewer: {
+                contributionsCollection: {
+                    totalCommitContributions: number
+                }
+            }
+        }
+        const result = await gql<Result>(query)
+        total += result.viewer.contributionsCollection.totalCommitContributions
     }
-    query += '}}'
-
-    interface Result {
-        viewer: Record<string, { totalCommitContributions: number }>
-    }
-
-    const result = await gql<Result>(query)
-    return Object.keys(result.viewer)
-        .map(key => result.viewer[key].totalCommitContributions)
-        .reduce((total, current) => total + current, 0)
+    return total
 }
 
 async function getTotalReviews(
     gql: typeof graphql,
     contributionYears: number[]
 ) {
-    let query = '{viewer{'
+    let total = 0
     for (const year of contributionYears) {
-        query += `_${year}: contributionsCollection(from: "${getDateTime(
-            year
-        )}") { totalPullRequestReviewContributions }`
+        const query = `{
+            viewer {
+                contributionsCollection(from: "${getDateTime(year)}") {
+                    totalPullRequestReviewContributions
+                }
+            }
+        }`
+        interface Result {
+            viewer: {
+                contributionsCollection: {
+                    totalPullRequestReviewContributions: number
+                }
+            }
+        }
+        const result = await gql<Result>(query)
+        total += result.viewer.contributionsCollection.totalPullRequestReviewContributions
     }
-    query += '}}'
-
-    interface Result {
-        viewer: Record<string, { totalPullRequestReviewContributions: number }>
-    }
-
-    const result = await gql<Result>(query)
-    return Object.keys(result.viewer)
-        .map(key => result.viewer[key].totalPullRequestReviewContributions)
-        .reduce((total, current) => total + current, 0)
+    return total
 }
 
 function getDateTime(year: number) {
